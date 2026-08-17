@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>풍선 압력 탐구실</title>
+<style>
+  :root{
+    --bg-deep:#050712;
+    --bg-mid:#0a0f24;
+    --panel-bg: rgba(15,20,44,0.72);
+    --panel-border: rgba(255,255,255,0.09);
+    --balloon-a:#ff7a68;
+    --balloon-b:#d42a5a;
+    --gas-color:#ff9552;
+    --elastic-color:#5fa8ff;
+    --accent:#57ffc9;
+    --accent-dim: rgba(87,255,201,0.15);
+    --text:#eef1fb;
+    --text-dim:#8791b8;
+    --danger:#ff3b57;
+    --font-display:'Apple SD Gothic Neo','Pretendard',-apple-system,BlinkMacSystemFont,'Malgun Gothic',sans-serif;
+    --font-mono:'SF Mono','D2Coding',Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg-deep);overflow:hidden;}
+  body{
+    font-family:var(--font-display);
+    color:var(--text);
+    background:
+      radial-gradient(ellipse 1200px 800px at 15% -10%, rgba(87,255,201,0.07), transparent 60%),
+      radial-gradient(ellipse 1000px 700px at 105% 110%, rgba(255,122,104,0.08), transparent 60%),
+      linear-gradient(160deg, var(--bg-deep), var(--bg-mid));
+  }
+  #app{display:flex;flex-direction:column;height:100vh;padding:20px 26px 12px;}
+  header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;}
+  .title-block h1{margin:0;font-size:clamp(20px,2.4vw,29px);font-weight:800;letter-spacing:-0.01em;}
+  .title-block p{margin:2px 0 0;color:var(--text-dim);font-size:clamp(11px,1vw,13px);}
+  nav#tabs{display:flex;gap:6px;background:var(--panel-bg);border:1px solid var(--panel-border);padding:6px;border-radius:14px;backdrop-filter:blur(6px);}
+  nav#tabs button{
+    appearance:none;border:none;background:transparent;color:var(--text-dim);
+    font-family:var(--font-display);font-size:clamp(12px,1vw,14px);font-weight:700;
+    padding:9px 14px;border-radius:10px;cursor:pointer;transition:all .18s;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;
+  }
+  nav#tabs button .num{
+    font-family:var(--font-mono);font-size:11px;width:18px;height:18px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.09);
+    flex-shrink:0;
+  }
+  nav#tabs button.active{color:#04241c;background:var(--accent);box-shadow:0 4px 18px rgba(87,255,201,0.35);}
+  nav#tabs button.active .num{background:rgba(4,36,28,0.22);}
+  nav#tabs button:not(.active):hover{color:var(--text);background:rgba(255,255,255,0.07);}
+
+  main{flex:1;display:flex;gap:16px;min-height:0;}
+  #stage-wrap{flex:1;position:relative;border-radius:22px;overflow:hidden;
+    background:radial-gradient(ellipse at 50% 42%, rgba(255,255,255,0.035), transparent 70%);
+    border:1px solid var(--panel-border);}
+  canvas{display:block;width:100%;height:100%;cursor:default;touch-action:none;}
+  canvas.grabbable{cursor:grab;}
+  canvas.pressing{cursor:grabbing;}
+  #stage-caption{position:absolute;left:20px;top:16px;color:var(--text-dim);font-size:12.5px;pointer-events:none;
+    background:rgba(5,7,18,0.35);padding:5px 10px;border-radius:8px;backdrop-filter:blur(4px);}
+  #stage-title{position:absolute;left:20px;bottom:16px;right:20px;pointer-events:none;}
+  #stage-title h2{margin:0;font-size:clamp(17px,1.9vw,23px);font-weight:800;}
+  #stage-title p{margin:5px 0 0;color:var(--text-dim);font-size:13px;max-width:640px;}
+
+  aside#panel{width:min(360px,32vw);display:flex;flex-direction:column;gap:11px;overflow-y:auto;padding-right:2px;}
+  .card{background:var(--panel-bg);border:1px solid var(--panel-border);border-radius:16px;padding:15px 17px;backdrop-filter:blur(6px);}
+  .card h3{margin:0 0 9px;font-size:12px;color:var(--text-dim);font-weight:700;letter-spacing:.03em;text-transform:uppercase;}
+  .stat-row{display:flex;align-items:baseline;justify-content:space-between;margin:7px 0;gap:10px;}
+  .stat-row .label{font-size:13px;color:var(--text-dim);flex-shrink:0;}
+  .stat-row .value{font-family:var(--font-mono);font-size:19px;font-weight:700;text-align:right;}
+  .stat-row .value.small{font-size:13.5px;}
+  .note{font-size:11px;color:var(--text-dim);margin-top:6px;opacity:.75;}
+  .bar{height:8px;border-radius:6px;background:rgba(255,255,255,0.08);overflow:hidden;margin-top:6px;}
+  .bar > div{height:100%;border-radius:6px;transition:width .12s ease, background .2s ease;width:0%;}
+  .bar.gas > div{background:linear-gradient(90deg,var(--gas-color),#ffce8f);}
+  .bar.elastic > div{background:linear-gradient(90deg,var(--elastic-color),#9fd4ff);}
+  .bar.radius > div{background:linear-gradient(90deg,var(--balloon-a),var(--balloon-b));}
+  .btn-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px;}
+  .btn-row + .btn-row{margin-top:8px;}
+  button.act{
+    appearance:none;border:1px solid var(--panel-border);background:rgba(255,255,255,0.045);
+    color:var(--text);font-family:var(--font-display);font-weight:700;font-size:13px;
+    padding:11px 12px;border-radius:12px;cursor:pointer;flex:1;min-width:100px;transition:all .15s;
+  }
+  button.act:hover{background:rgba(255,255,255,0.09);transform:translateY(-1px);}
+  button.act:active{transform:translateY(0);}
+  button.act.primary{background:var(--accent-dim);border-color:rgba(87,255,201,0.4);color:var(--accent);}
+  button.act.primary:hover{background:rgba(87,255,201,0.24);}
+  button.act.danger{background:rgba(255,59,87,0.1);border-color:rgba(255,59,87,0.32);color:#ff8a9b;}
+  button.act.danger:hover{background:rgba(255,59,87,0.18);}
+  button.act.tool.selected{background:var(--accent);color:#04241c;border-color:var(--accent);}
+  #explain{font-size:14px;line-height:1.62;color:var(--text);min-height:64px;}
+  #explain b{color:var(--accent);font-weight:700;}
+  #log{font-family:var(--font-mono);font-size:11.5px;color:var(--text-dim);line-height:1.5;}
+  #log div{padding:6px 0;border-bottom:1px dashed var(--panel-border);}
+  #log div:last-child{border-bottom:none;}
+  footer{margin-top:10px;text-align:center;color:var(--text-dim);font-size:11.5px;}
+  footer b{color:var(--text);}
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:6px;}
+  @media (max-width:920px){
+    main{flex-direction:column;}
+    aside#panel{width:100%;max-height:38vh;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="title-block">
+      <h1>🎈 풍선 압력 탐구실</h1>
+      <p>기체 입자의 움직임으로 풍선 속 압력의 원리를 이해해봐요</p>
+    </div>
+    <nav id="tabs">
+      <button data-i="0" class="active"><span class="num">1</span>공기 주입</button>
+      <button data-i="1"><span class="num">2</span>공기 배출</button>
+      <button data-i="2"><span class="num">3</span>손가락으로 누르기</button>
+      <button data-i="3"><span class="num">4</span>손가락 vs 송곳</button>
+    </nav>
+  </header>
+  <main>
+    <div id="stage-wrap">
+      <canvas id="c"></canvas>
+      <div id="stage-caption"></div>
+      <div id="stage-title"><h2 id="st-h2"></h2><p id="st-p"></p></div>
+    </div>
+    <aside id="panel"></aside>
+  </main>
+  <footer>← → 또는 숫자 <b>1~4</b> 키로 이동 · 3, 4단계에서는 풍선을 마우스로 눌러볼 수 있어요</footer>
+</div>
+
+<script>
+'use strict';
+/* ===================== 기본 유틸 ===================== */
+const FONT_KR = "'Apple SD Gothic Neo','Malgun Gothic',sans-serif";
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function lerp(a,b,t){ return a+(b-a)*t; }
+function angDiff(a,b){ let d=(a-b)%360; if(d>180) d-=360; if(d<-180) d+=360; return d; }
+function calcRadius(n){ return clamp(46+8.6*Math.sqrt(n),46,250); }
+function formatPressure(pa){
+  if(pa>=1000) return (pa/1000).toFixed(1)+' kPa';
+  return Math.round(pa)+' Pa';
+}
+
+/* ===================== 캔버스 세팅 ===================== */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W=0,H=0,DPR=1,cx=0,cy=0;
+function resize(){
+  const rect = canvas.parentElement.getBoundingClientRect();
+  DPR = window.devicePixelRatio||1;
+  canvas.width = Math.max(1,Math.round(rect.width*DPR));
+  canvas.height = Math.max(1,Math.round(rect.height*DPR));
+  canvas.style.width = rect.width+'px';
+  canvas.style.height = rect.height+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  W = rect.width; H = rect.height;
+  cx = W/2; cy = H*0.46;
+  if(balloon1) balloon1.setCenter(cx,cy);
+  if(balloon2) balloon2.setCenter(cx,cy);
+  if(balloon3) balloon3.setCenter(cx,cy);
+  if(balloon4) balloon4.setCenter(cx,cy);
+}
+window.addEventListener('resize', resize);
+
+/* ===================== 풍선(경계) 클래스 ===================== */
+class Balloon{
+  constructor(cx,cy,n=72){
+    this.cx=cx; this.cy=cy; this.n=n;
+    this.target=new Array(n).fill(60);
+    this.cur=new Array(n).fill(60);
+    this.vel=new Array(n).fill(0);
+    this.baseR=60;
+  }
+  setCenter(cx,cy){ this.cx=cx; this.cy=cy; }
+  setAll(r){ this.target.fill(r); this.cur.fill(r); this.vel.fill(0); this.baseR=r; }
+  setBase(r){ this.baseR=r; this.target.fill(r); }
+  indent(angleDeg, halfWidthDeg, depthFrac){
+    for(let i=0;i<this.n;i++){
+      const a = i/this.n*360;
+      const diff = Math.abs(angDiff(a,angleDeg));
+      if(diff<halfWidthDeg){
+        const falloff = Math.cos((diff/halfWidthDeg)*(Math.PI/2));
+        const val = this.baseR*(1-depthFrac*falloff);
+        if(val<this.target[i]) this.target[i]=val;
+      }
+    }
+  }
+  integrate(dt){
+    const K=140,D=13;
+    for(let i=0;i<this.n;i++){
+      const err = this.target[i]-this.cur[i];
+      this.vel[i] += (err*K - this.vel[i]*D)*dt;
+      this.cur[i] += this.vel[i]*dt;
+      if(this.cur[i]<8) this.cur[i]=8;
+    }
+  }
+  radiusAt(angleDeg){
+    const idx = ((angleDeg/360*this.n)%this.n+this.n)%this.n;
+    const i0 = Math.floor(idx)%this.n;
+    const i1 = (i0+1)%this.n;
+    const frac = idx-Math.floor(idx);
+    return this.cur[i0]+(this.cur[i1]-this.cur[i0])*frac;
+  }
+  avgCur(){ let s=0; for(const v of this.cur) s+=v; return s/this.n; }
+  getPoints(){
+    const pts=[];
+    for(let i=0;i<this.n;i++){
+      const a = i/this.n*Math.PI*2;
+      const r = this.cur[i];
+      pts.push({x:this.cx+Math.cos(a)*r, y:this.cy+Math.sin(a)*r});
+    }
+    return pts;
+  }
+  draw(ctx,colorA,colorB){
+    const pts = this.getPoints();
+    const mid=(p,q)=>({x:(p.x+q.x)/2,y:(p.y+q.y)/2});
+    ctx.beginPath();
+    let m0 = mid(pts[pts.length-1],pts[0]);
+    ctx.moveTo(m0.x,m0.y);
+    for(let i=0;i<pts.length;i++){
+      const next = pts[(i+1)%pts.length];
+      const m = mid(pts[i],next);
+      ctx.quadraticCurveTo(pts[i].x,pts[i].y,m.x,m.y);
+    }
+    ctx.closePath();
+    const avg = this.avgCur();
+    const grad = ctx.createRadialGradient(this.cx-avg*0.32,this.cy-avg*0.36,avg*0.08,this.cx,this.cy,avg*1.18);
+    grad.addColorStop(0,colorA);
+    grad.addColorStop(1,colorB);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(255,255,255,0.26)';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(this.cx-avg*0.35, this.cy-avg*0.42, avg*0.22, avg*0.13, -0.5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fill();
+  }
+}
+
+/* ===================== 입자(기체 분자) ===================== */
+function spawnInside(balloon,r){
+  const ang = Math.random()*Math.PI*2;
+  const rad = Math.sqrt(Math.random())*r*0.82;
+  const sp = 40+Math.random()*50;
+  const va = Math.random()*Math.PI*2;
+  return { x:balloon.cx+Math.cos(ang)*rad, y:balloon.cy+Math.sin(ang)*rad,
+           vx:Math.cos(va)*sp, vy:Math.sin(va)*sp, r:2.6 };
+}
+function spawnAtNeckIn(balloon){
+  const bx = balloon.cx + (Math.random()*28-14);
+  const by = balloon.cy + balloon.baseR*0.5 + Math.random()*10;
+  const va = (-90+(Math.random()*100-50))*Math.PI/180;
+  const sp = 75+Math.random()*60;
+  return { x:bx, y:by, vx:Math.cos(va)*sp, vy:Math.sin(va)*sp, r:2.6 };
+}
+function updateParticles(particles,balloon,dt,onCollide){
+  for(const p of particles){
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    const dx=p.x-balloon.cx, dy=p.y-balloon.cy;
+    let dist=Math.hypot(dx,dy);
+    if(dist<0.001) dist=0.001;
+    const angleDeg=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
+    const boundR = balloon.radiusAt(angleDeg)-p.r;
+    if(dist>boundR && boundR>0){
+      const nx=dx/dist, ny=dy/dist;
+      const dot = p.vx*nx+p.vy*ny;
+      if(dot>0){ p.vx-=2*dot*nx; p.vy-=2*dot*ny; }
+      p.x = balloon.cx+nx*boundR; p.y = balloon.cy+ny*boundR;
+      if(onCollide) onCollide(angleDeg,p);
+    }
+  }
+}
+function drawParticles(ctx,particles){
+  for(const p of particles){
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r*2.3,0,Math.PI*2);
+    ctx.fillStyle='rgba(143,233,255,0.11)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle='#eafeff';
+    ctx.fill();
+  }
+}
+
+/* 벽 충돌 플래시 */
+function spawnFlash(arr,balloon,angleDeg){
+  const r = balloon.radiusAt(angleDeg);
+  const a = angleDeg*Math.PI/180;
+  arr.push({x:balloon.cx+Math.cos(a)*r, y:balloon.cy+Math.sin(a)*r, t:0});
+  if(arr.length>50) arr.shift();
+}
+function updateFlashes(arr,dt){
+  for(let i=arr.length-1;i>=0;i--){ arr[i].t+=dt; if(arr[i].t>0.35) arr.splice(i,1); }
+}
+function drawFlashes(ctx,arr){
+  for(const f of arr){
+    const p = 1-f.t/0.35;
+    ctx.beginPath();
+    ctx.arc(f.x,f.y,6+(1-p)*10,0,Math.PI*2);
+    ctx.strokeStyle = `rgba(255,213,140,${(p*0.8).toFixed(3)})`;
+    ctx.lineWidth=2;
+    ctx.stroke();
+  }
+}
+
+/* 목(입구) 그리기 */
+function drawNeck(ctx,balloon,tied){
+  const aRad = 90*Math.PI/180;
+  const baseR = balloon.radiusAt(90);
+  const nx = balloon.cx+Math.cos(aRad)*baseR, ny = balloon.cy+Math.sin(aRad)*baseR;
+  const tipx = balloon.cx, tipy = ny+32;
+  ctx.beginPath();
+  ctx.moveTo(nx-13,ny-4);
+  ctx.lineTo(tipx-6,tipy);
+  ctx.lineTo(tipx+6,tipy);
+  ctx.lineTo(nx+13,ny-4);
+  ctx.closePath();
+  ctx.fillStyle='#bf2249';
+  ctx.fill();
+  if(tied){
+    ctx.beginPath();
+    ctx.ellipse(tipx,tipy+6,8,6.5,0,0,Math.PI*2);
+    ctx.fillStyle='#821432';
+    ctx.fill();
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(tipx,tipy+2,5,3.2,0,0,Math.PI*2);
+    ctx.fillStyle='#05070f';
+    ctx.fill();
+  }
+}
+
+/* 힘 화살표 */
+function drawForceArrow(ctx,x,y,angleRad,len,color,label,sideOffsetPx){
+  len = Math.min(len,150);
+  const ex = x+Math.cos(angleRad)*len, ey = y+Math.sin(angleRad)*len;
+  ctx.save();
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=4; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(ex,ey); ctx.stroke();
+  const hs=9;
+  ctx.beginPath();
+  ctx.moveTo(ex,ey);
+  ctx.lineTo(ex-hs*Math.cos(angleRad-0.4), ey-hs*Math.sin(angleRad-0.4));
+  ctx.lineTo(ex-hs*Math.cos(angleRad+0.4), ey-hs*Math.sin(angleRad+0.4));
+  ctx.closePath(); ctx.fill();
+  const perpX = -Math.sin(angleRad)*sideOffsetPx, perpY = Math.cos(angleRad)*sideOffsetPx;
+  ctx.font = `700 13px ${FONT_KR}`;
+  ctx.textAlign='center';
+  ctx.fillText(label, ex+perpX, ey+perpY);
+  ctx.restore();
+}
+
+/* 손가락 모양 (바깥에서 안쪽으로 누르는 형태, tipX/tipY = 풍선에 닿는 지점) */
+function drawFingerShape(ctx,tipX,tipY,angleRad){
+  ctx.save();
+  ctx.translate(tipX,tipY);
+  ctx.rotate(angleRad);
+  const len=64, w=24;
+  ctx.beginPath();
+  ctx.moveTo(0,-w*0.24);
+  ctx.quadraticCurveTo(-4,0,0,w*0.24);
+  ctx.lineTo(len*0.3,w*0.5);
+  ctx.lineTo(len,w*0.5);
+  ctx.quadraticCurveTo(len+11,0,len,-w*0.5);
+  ctx.lineTo(len*0.3,-w*0.5);
+  ctx.closePath();
+  const grad=ctx.createLinearGradient(0,0,len,0);
+  grad.addColorStop(0,'#ffd9a8');
+  grad.addColorStop(1,'#e8a262');
+  ctx.fillStyle=grad;
+  ctx.fill();
+  ctx.lineWidth=2;
+  ctx.strokeStyle='rgba(80,45,15,0.35)';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(len*0.16,0,w*0.18,w*0.26,0,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.fill();
+  ctx.restore();
+}
+/* 송곳(바늘) 모양 */
+function drawNeedleShape(ctx,tipX,tipY,angleRad){
+  ctx.save();
+  ctx.translate(tipX,tipY);
+  ctx.rotate(angleRad);
+  const len=82, w=6.5;
+  ctx.beginPath();
+  ctx.moveTo(0,0);
+  ctx.lineTo(len*0.16,-w*0.5);
+  ctx.lineTo(len*0.82,-w*0.5);
+  ctx.lineTo(len*0.82,w*0.5);
+  ctx.lineTo(len*0.16,w*0.5);
+  ctx.closePath();
+  const grad=ctx.createLinearGradient(0,0,len*0.82,0);
+  grad.addColorStop(0,'#eef2f8');
+  grad.addColorStop(1,'#93a0b6');
+  ctx.fillStyle=grad;
+  ctx.fill();
+  ctx.lineWidth=1.4;
+  ctx.strokeStyle='rgba(0,0,0,0.25)';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.rect(len*0.8,-9,18,18);
+  ctx.fillStyle='#4a3320';
+  ctx.fill();
+  ctx.restore();
+}
+/* 도구가 닿는 지점(각도 & 반지름)을 계산 - 누르는 중이면 실제 눌린 지점, 아니면 살짝 띄운 대기 위치 */
+function toolContactPoint(balloon, baseR, pressing, angleDeg){
+  const a = angleDeg*Math.PI/180;
+  const r = pressing ? balloon.radiusAt(angleDeg) : baseR+46;
+  return { x:balloon.cx+Math.cos(a)*r, y:balloon.cy+Math.sin(a)*r, angleRad:a };
+}
+
+/* ===================== 무대(스테이지) 메타 ===================== */
+const STAGE_META=[
+  {title:'① 공기를 넣으면 풍선이 왜 부풀까?', sub:'기체 입자 수가 많아질수록 벽에 부딪히는 횟수가 늘어나 압력이 커집니다.', caption:'버튼으로 펌프질해서 입자를 넣어보세요'},
+  {title:'② 공기를 빼면 풍선은 왜 작아질까?', sub:'입자 수가 줄면 벽에 부딪히는 빈도가 줄어들어 압력이 낮아집니다.', caption:'입구를 열어 기체가 빠져나가는 모습을 관찰해보세요'},
+  {title:'③ 손가락으로 누르면 왜 밀려날까?', sub:'압축된 기체의 반발력과 고무막의 탄성력이 함께 손가락을 밀어냅니다.', caption:'풍선을 마우스로 누르거나 버튼으로 눌러보세요'},
+  {title:'④ 같은 힘인데 왜 송곳만 풍선을 터뜨릴까?', sub:'압력 = 힘 ÷ 면적. 접촉 면적이 작을수록 같은 힘도 훨씬 큰 압력이 됩니다.', caption:'손가락과 송곳, 같은 세기로 각각 눌러 비교해보세요'}
+];
+
+const PANEL_TPL=[
+/* stage 0 */
+`<div class="card">
+  <h3>기체 입자 상태</h3>
+  <div class="stat-row"><span class="label">입자 수</span><span class="value" id="s1-n">0</span></div>
+  <div class="stat-row"><span class="label">초당 벽 충돌 횟수</span><span class="value" id="s1-rate">0</span></div>
+  <div class="stat-row"><span class="label">압력 상태</span><span class="value small" id="s1-state">-</span></div>
+  <div class="bar radius"><div id="s1-bar"></div></div>
+</div>
+<div class="card">
+  <h3>펌프질하기</h3>
+  <div class="btn-row">
+    <button class="act" id="s1-small">조금 넣기 (+10)</button>
+    <button class="act primary" id="s1-big">많이 넣기 (+50)</button>
+  </div>
+  <div class="btn-row"><button class="act danger" id="s1-reset">초기화</button></div>
+</div>
+<div class="card"><h3>왜 그럴까?</h3><div id="explain">버튼을 눌러 풍선에 공기를 넣어보세요.</div></div>`,
+/* stage 1 */
+`<div class="card">
+  <h3>기체 입자 상태</h3>
+  <div class="stat-row"><span class="label">남은 입자 수</span><span class="value" id="s2-n">0</span></div>
+  <div class="stat-row"><span class="label">초당 빠져나가는 입자</span><span class="value" id="s2-out">0</span></div>
+  <div class="bar radius"><div id="s2-bar"></div></div>
+</div>
+<div class="card">
+  <h3>입구 조절</h3>
+  <div class="btn-row"><button class="act primary" id="s2-toggle">입구 열기</button></div>
+  <div class="btn-row"><button class="act danger" id="s2-reset">다시 가득 채우기</button></div>
+</div>
+<div class="card"><h3>왜 그럴까?</h3><div id="explain">입구를 열어 공기가 빠지는 모습을 관찰해보세요.</div></div>`,
+/* stage 2 */
+`<div class="card">
+  <h3>손가락에 느껴지는 힘</h3>
+  <div class="stat-row"><span class="label">기체가 미는 정도</span><span class="value" id="s3-gas" style="color:var(--gas-color)">0</span></div>
+  <div class="bar gas"><div id="s3-gasbar"></div></div>
+  <div class="stat-row"><span class="label">고무막 탄성 정도</span><span class="value" id="s3-el" style="color:var(--elastic-color)">0</span></div>
+  <div class="bar elastic"><div id="s3-elbar"></div></div>
+</div>
+<div class="card">
+  <h3>눌러보기</h3>
+  <div class="btn-row">
+    <button class="act" id="s3-weak">약하게 누르기</button>
+    <button class="act primary" id="s3-strong">세게 누르기</button>
+  </div>
+  <div class="btn-row"><button class="act danger" id="s3-release">손 떼기</button></div>
+</div>
+<div class="card"><h3>왜 그럴까?</h3><div id="explain">풍선을 마우스로 누르거나 버튼을 눌러보세요.</div></div>`,
+/* stage 3 */
+`<div class="card">
+  <h3>도구 선택</h3>
+  <div class="btn-row">
+    <button class="act tool selected" id="s4-finger">손가락</button>
+    <button class="act tool" id="s4-needle">송곳</button>
+  </div>
+</div>
+<div class="card">
+  <h3>같은 힘, 다른 면적</h3>
+  <div class="stat-row"><span class="label">누르는 힘 F</span><span class="value" id="s4-f">0.0 N</span></div>
+  <div class="stat-row"><span class="label">접촉 면적 A</span><span class="value small" id="s4-a">-</span></div>
+  <div class="stat-row"><span class="label">압력 P = F ÷ A</span><span class="value" id="s4-p" style="color:var(--danger)">-</span></div>
+  <div class="bar gas"><div id="s4-pbar"></div></div>
+  <div class="note">※ 면적·압력 수치는 이해를 돕기 위한 예시값입니다.</div>
+</div>
+<div class="card">
+  <h3>눌러보기</h3>
+  <div class="btn-row"><button class="act primary" id="s4-press">누르기</button><button class="act danger" id="s4-release">손 떼기</button></div>
+  <div class="btn-row"><button class="act" id="s4-reset">풍선 새로 불기</button></div>
+</div>
+<div class="card"><h3>시도 기록</h3><div id="log">아직 시도한 기록이 없어요.</div></div>
+<div class="card"><h3>왜 그럴까?</h3><div id="explain">같은 세기로 손가락과 송곳을 눌러 압력을 비교해보세요.</div></div>`
+];
+
+/* ===================== 전역 상태 ===================== */
+const MAX1 = 500;
+let balloon1=null, particles1=[], collideLog1=[], flashes1=[];
+
+let balloon2=null, particles2=[], neckOpen2=false, escapeLog2=[], streaks2=[];
+
+let balloon3=null, particles3=[], collideLog3=[], flashes3=[], S3_BASE_R=150;
+let s3 = {pressing:false, angle:270, depth:0, gasForce:0, elasticForce:0};
+
+let balloon4=null, particles4=[], particles4post=[], fragments4=[], flashes4=[], S4_BASE_R=150;
+const TOOL_AREA = {finger:8.0, needle:0.05};
+const TOOL_HALFWIDTH = {finger:26, needle:2.5};
+const BURST_PA = 50000;
+let s4 = {tool:'finger', pressing:false, rampMode:false, angle:270, depth:0, force:0, pressure:0, overTimer:0, popped:false, popTimer:0};
+
+/* ===================== STAGE 0 : 공기 주입 ===================== */
+function resetStage1(){
+  balloon1 = new Balloon(cx,cy);
+  balloon1.setAll(46);
+  particles1 = [];
+  collideLog1 = [];
+  flashes1 = [];
+  updateStage1UI();
+}
+function onCollide1(angleDeg){
+  collideLog1.push(performance.now());
+  if(Math.random()<0.3) spawnFlash(flashes1,balloon1,angleDeg);
+}
+function pumpStage1(count){
+  for(let k=0;k<count;k++){
+    if(particles1.length>=MAX1) break;
+    particles1.push(spawnAtNeckIn(balloon1));
+  }
+}
+function updateStage1(dt){
+  const targetR = calcRadius(particles1.length);
+  balloon1.setBase(targetR);
+  balloon1.integrate(dt);
+  updateParticles(particles1,balloon1,dt,onCollide1);
+  const now = performance.now();
+  collideLog1 = collideLog1.filter(t=>now-t<1000);
+  updateFlashes(flashes1,dt);
+  updateStage1UI();
+}
+function renderStage1(){
+  balloon1.draw(ctx,'#ff7a68','#c81f4f');
+  drawNeck(ctx,balloon1,false);
+  drawParticles(ctx,particles1);
+  drawFlashes(ctx,flashes1);
+}
+function updateStage1UI(){
+  const n = particles1.length;
+  const nEl=document.getElementById('s1-n'); if(nEl) nEl.textContent=n;
+  const rEl=document.getElementById('s1-rate'); if(rEl) rEl.textContent=collideLog1.length;
+  const bar=document.getElementById('s1-bar');
+  if(bar) bar.style.width = clamp((balloon1.avgCur()-46)/(250-46)*100,0,100)+'%';
+  let stateLabel, exp;
+  if(n===0){ stateLabel='비어있음'; exp='아직 공기가 없어요. 펌프질을 해봅시다.'; }
+  else if(n<60){ stateLabel='낮음'; exp='입자 수가 적어서 벽에 부딪히는 횟수가 적어요. 그래서 풍선이 조금만 부풀어요.'; }
+  else if(n<200){ stateLabel='보통'; exp='<b>입자가 많아질수록</b> 벽에 부딪히는 횟수가 늘어나고, 그만큼 풍선을 미는 압력도 커져서 더 부풀어요.'; }
+  else if(n<400){ stateLabel='높음'; exp='입자가 아주 많아 벽에 계속 부딪히고 있어요. 풍선이 크게 부풀어 팽팽해졌어요.'; }
+  else { stateLabel='매우 높음 (거의 가득)'; exp='입자 수가 최대에 가까워요! 더 넣으면 고무막이 버티기 힘들어질 거예요.'; }
+  const stEl=document.getElementById('s1-state'); if(stEl) stEl.textContent=stateLabel;
+  const exEl=document.getElementById('explain'); if(exEl) exEl.innerHTML=exp;
+}
+
+/* ===================== STAGE 1 : 공기 배출 ===================== */
+function resetStage2(){
+  balloon2 = new Balloon(cx,cy);
+  const n0 = 260;
+  const r0 = calcRadius(n0);
+  balloon2.setAll(r0);
+  particles2 = [];
+  for(let i=0;i<n0;i++) particles2.push(spawnInside(balloon2,r0));
+  neckOpen2 = false;
+  escapeLog2 = [];
+  streaks2 = [];
+  const tb=document.getElementById('s2-toggle');
+  if(tb){ tb.textContent='입구 열기'; tb.classList.add('primary'); }
+  updateStage2UI();
+}
+function updateStreaks(arr,dt){
+  for(let i=arr.length-1;i>=0;i--){
+    const s=arr[i];
+    s.life+=dt; s.x+=s.vx*dt; s.y+=s.vy*dt; s.vy+=140*dt;
+    if(s.life>0.7) arr.splice(i,1);
+  }
+}
+function drawStreaks(ctx,arr){
+  for(const s of arr){
+    const a = clamp(1-s.life/0.7,0,1);
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,3,0,Math.PI*2);
+    ctx.fillStyle = `rgba(143,233,255,${a.toFixed(3)})`;
+    ctx.fill();
+  }
+}
+/* 안쪽(고압) → 바깥(저압)으로 빠져나가는 것을 표현:
+   ① 입구 주변 넓은 영역(FUNNEL)의 입자는 압력차 때문에 입구 쪽으로 끌려가듯 휘어지고
+   ② 입구의 좁은 통로(HOLE)에 닿으면 그대로 빠져나가며 순간적으로 가속(제트 효과)됩니다. */
+function updateStage2Particles(dt){
+  const NECK_HOLE_HALF = 13;
+  const FUNNEL_HALF = 58;
+  const PULL = 340;
+  for(let i=particles2.length-1;i>=0;i--){
+    const p=particles2[i];
+    if(neckOpen2){
+      const dx0=p.x-balloon2.cx, dy0=p.y-balloon2.cy;
+      const dist0=Math.hypot(dx0,dy0)||0.001;
+      const ang0=(Math.atan2(dy0,dx0)*180/Math.PI+360)%360;
+      const adist=Math.abs(angDiff(ang0,90));
+      if(adist<FUNNEL_HALF){
+        const boundaryR = balloon2.radiusAt(ang0);
+        const radialFrac = clamp(dist0/boundaryR,0,1.2);
+        const strength = PULL*(1-adist/FUNNEL_HALF)*radialFrac;
+        const holeR = balloon2.radiusAt(90);
+        const holeX = balloon2.cx, holeY = balloon2.cy+holeR;
+        const tx=holeX-p.x, ty=holeY-p.y;
+        const tlen=Math.hypot(tx,ty)||0.001;
+        p.vx += (tx/tlen)*strength*dt;
+        p.vy += (ty/tlen)*strength*dt;
+      }
+    }
+    p.x += p.vx*dt; p.y += p.vy*dt;
+    const dx=p.x-balloon2.cx, dy=p.y-balloon2.cy;
+    let dist=Math.hypot(dx,dy); if(dist<0.001) dist=0.001;
+    const angleDeg=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
+    const boundR = balloon2.radiusAt(angleDeg)-p.r;
+    const inHole = neckOpen2 && Math.abs(angDiff(angleDeg,90))<NECK_HOLE_HALF;
+    if(dist>boundR){
+      if(inHole){
+        const nx=dx/dist, ny=dy/dist;
+        const boost=230+Math.random()*150;
+        streaks2.push({x:p.x,y:p.y,vx:nx*boost, vy:ny*boost+40, life:0});
+        particles2.splice(i,1);
+        escapeLog2.push(performance.now());
+      } else if(boundR>0){
+        const nx=dx/dist, ny=dy/dist;
+        const dot=p.vx*nx+p.vy*ny;
+        if(dot>0){ p.vx-=2*dot*nx; p.vy-=2*dot*ny; }
+        p.x = balloon2.cx+nx*boundR; p.y = balloon2.cy+ny*boundR;
+      }
+    }
+  }
+}
+function updateStage2(dt){
+  const targetR = calcRadius(particles2.length);
+  balloon2.setBase(targetR);
+  balloon2.integrate(dt);
+  updateStage2Particles(dt);
+  const now=performance.now();
+  escapeLog2 = escapeLog2.filter(t=>now-t<1000);
+  updateStreaks(streaks2,dt);
+  updateStage2UI();
+}
+function renderStage2(){
+  balloon2.draw(ctx,'#ff7a68','#c81f4f');
+  drawNeck(ctx,balloon2,!neckOpen2);
+  drawParticles(ctx,particles2);
+  drawStreaks(ctx,streaks2);
+}
+function updateStage2UI(){
+  const n=particles2.length;
+  const nEl=document.getElementById('s2-n'); if(nEl) nEl.textContent=n;
+  const oEl=document.getElementById('s2-out'); if(oEl) oEl.textContent=escapeLog2.length;
+  const bar=document.getElementById('s2-bar');
+  if(bar) bar.style.width = clamp((balloon2.avgCur()-46)/(250-46)*100,0,100)+'%';
+  let exp;
+  if(!neckOpen2){ exp='입구를 열어 공기가 빠지는 모습을 관찰해보세요.'; }
+  else if(n===0){ exp='입자가 모두 빠져나가 풍선이 홀쭉해졌어요. 입자가 없으니 벽에 부딪힐 것도 없겠죠?'; }
+  else { exp='입구가 열리면 <b>바깥 압력이 안쪽보다 낮아서</b> 입구 근처의 기체 입자들이 순식간에 그쪽으로 몰려가며 빠르게 빠져나가요. 입자 수가 줄어들수록 벽에 부딪히는 횟수도 줄어들어 압력이 낮아지고, 풍선은 다시 작아집니다.'; }
+  const exEl=document.getElementById('explain'); if(exEl) exEl.innerHTML=exp;
+}
+
+/* ===================== STAGE 2 : 손가락으로 누르기 ===================== */
+function resetStage3(){
+  balloon3 = new Balloon(cx,cy);
+  S3_BASE_R = calcRadius(240);
+  balloon3.setAll(S3_BASE_R);
+  particles3 = [];
+  for(let i=0;i<240;i++) particles3.push(spawnInside(balloon3,S3_BASE_R));
+  collideLog3 = [];
+  flashes3 = [];
+  s3 = {pressing:false, angle:270, depth:0, gasForce:0, elasticForce:0};
+  updateStage3UI();
+}
+function onCollide3(angleDeg){
+  collideLog3.push({a:angleDeg,t:performance.now()});
+  if(collideLog3.length>600) collideLog3.shift();
+  if(Math.random()<0.3) spawnFlash(flashes3,balloon3,angleDeg);
+}
+function stage3PointerAt(x,y){
+  const dx=x-balloon3.cx, dy=y-balloon3.cy;
+  const dist=Math.hypot(dx,dy);
+  const angleDeg=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
+  const depth=clamp((S3_BASE_R-dist)/(S3_BASE_R*0.65),0,0.62);
+  s3.pressing=true; s3.angle=angleDeg; s3.depth=depth;
+}
+function updateStage3(dt){
+  balloon3.setBase(S3_BASE_R);
+  if(s3.pressing) balloon3.indent(s3.angle,30,s3.depth);
+  balloon3.integrate(dt);
+  updateParticles(particles3,balloon3,dt,onCollide3);
+  updateFlashes(flashes3,dt);
+  const now=performance.now();
+  collideLog3 = collideLog3.filter(c=>now-c.t<400);
+  let gasVal=0;
+  if(s3.pressing){
+    for(const c of collideLog3) if(Math.abs(angDiff(c.a,s3.angle))<30) gasVal++;
+  }
+  s3.gasForce = lerp(s3.gasForce, gasVal, 0.3);
+  s3.elasticForce = s3.pressing ? s3.depth*110 : lerp(s3.elasticForce,0,0.12);
+  if(!s3.pressing) s3.gasForce = lerp(s3.gasForce,0,0.12);
+  updateStage3UI();
+}
+function renderStage3(){
+  balloon3.draw(ctx,'#ff7a68','#c81f4f');
+  drawNeck(ctx,balloon3,true);
+  drawParticles(ctx,particles3);
+  drawFlashes(ctx,flashes3);
+  if(s3.pressing && s3.depth>0.02){
+    const gA=(s3.angle-16)*Math.PI/180, eA=(s3.angle+16)*Math.PI/180;
+    const gR=balloon3.radiusAt(s3.angle-16), eR=balloon3.radiusAt(s3.angle+16);
+    const gpx=balloon3.cx+Math.cos(gA)*gR, gpy=balloon3.cy+Math.sin(gA)*gR;
+    const epx=balloon3.cx+Math.cos(eA)*eR, epy=balloon3.cy+Math.sin(eA)*eR;
+    drawForceArrow(ctx,gpx,gpy,gA,18+s3.gasForce*3.2,'#ff9552','기체',-14);
+    drawForceArrow(ctx,epx,epy,eA,18+s3.elasticForce*1.5,'#5fa8ff','탄성',14);
+  }
+  const cp = toolContactPoint(balloon3, S3_BASE_R, s3.pressing, s3.angle);
+  drawFingerShape(ctx, cp.x, cp.y, cp.angleRad);
+}
+function updateStage3UI(){
+  const gEl=document.getElementById('s3-gas'); if(gEl) gEl.textContent=s3.gasForce.toFixed(0);
+  const gb=document.getElementById('s3-gasbar'); if(gb) gb.style.width=clamp(s3.gasForce/30*100,0,100)+'%';
+  const eEl=document.getElementById('s3-el'); if(eEl) eEl.textContent=s3.elasticForce.toFixed(0);
+  const eb=document.getElementById('s3-elbar'); if(eb) eb.style.width=clamp(s3.elasticForce/70*100,0,100)+'%';
+  let exp;
+  if(!s3.pressing){ exp='풍선을 마우스로 누르거나 버튼을 눌러보세요.'; }
+  else if(s3.depth<0.25){ exp='살짝 눌렀을 때는 <b>탄성력</b>과 <b>기체가 미는 힘</b>이 아직 작게 나타나요.'; }
+  else { exp='세게 누르면 그 부분의 기체 입자가 좁은 공간에 압축되어 벽에 더 자주 부딪히면서 <b>기체 반발력</b>이 커지고, 고무막이 늘어나면서 <b>탄성력</b>도 함께 커져요. 두 힘이 합쳐져 손가락을 밀어내는 게 느껴지는 거예요!'; }
+  const exEl=document.getElementById('explain'); if(exEl) exEl.innerHTML=exp;
+}
+
+/* ===================== STAGE 3 : 손가락 vs 송곳 ===================== */
+function resetStage4(){
+  const prevTool = s4 ? s4.tool : 'finger';
+  balloon4 = new Balloon(cx,cy);
+  S4_BASE_R = calcRadius(240);
+  balloon4.setAll(S4_BASE_R);
+  particles4 = [];
+  for(let i=0;i<240;i++) particles4.push(spawnInside(balloon4,S4_BASE_R));
+  particles4post = [];
+  fragments4 = [];
+  flashes4 = [];
+  s4 = {tool:prevTool, pressing:false, rampMode:false, angle:270, depth:0, force:0, pressure:0, overTimer:0, popped:false, popTimer:0};
+  syncTool4Buttons();
+  updateStage4UI();
+}
+function syncTool4Buttons(){
+  const fb=document.getElementById('s4-finger'), nb=document.getElementById('s4-needle');
+  if(fb) fb.classList.toggle('selected', s4.tool==='finger');
+  if(nb) nb.classList.toggle('selected', s4.tool==='needle');
+}
+function selectTool4(t){
+  if(s4.popped) return;
+  s4.tool=t;
+  syncTool4Buttons();
+  updateStage4UI();
+}
+function stage4PointerAt(x,y){
+  if(s4.popped) return;
+  const dx=x-balloon4.cx, dy=y-balloon4.cy;
+  const dist=Math.hypot(dx,dy);
+  const angleDeg=(Math.atan2(dy,dx)*180/Math.PI+360)%360;
+  const depth=clamp((S4_BASE_R-dist)/(S4_BASE_R*0.65),0,0.62);
+  s4.pressing=true; s4.rampMode=false; s4.angle=angleDeg; s4.depth=depth;
+}
+function onCollide4(angleDeg){
+  if(Math.random()<0.3) spawnFlash(flashes4,balloon4,angleDeg);
+}
+function triggerPop(){
+  s4.popped=true; s4.popTimer=0; s4.pressing=false;
+  particles4post = particles4.map(p=>{
+    const dx=p.x-balloon4.cx, dy=p.y-balloon4.cy;
+    const d=Math.hypot(dx,dy)||1;
+    const boost=220+Math.random()*160;
+    return {x:p.x,y:p.y,vx:(dx/d)*boost+p.vx*0.3, vy:(dy/d)*boost+p.vy*0.3, r:2.6};
+  });
+  fragments4=[];
+  for(let i=0;i<12;i++){
+    const ang=(s4.angle+(Math.random()*140-70))*Math.PI/180;
+    const spd=180+Math.random()*220;
+    fragments4.push({
+      x:balloon4.cx+Math.cos(ang)*S4_BASE_R*0.6, y:balloon4.cy+Math.sin(ang)*S4_BASE_R*0.6,
+      vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd-60,
+      rot:Math.random()*6, vr:(Math.random()-0.5)*8, s:8+Math.random()*10, life:0
+    });
+  }
+  logAttempt(s4.tool, s4.force, s4.pressure, true);
+}
+function updateFragments(dt){
+  for(let i=fragments4.length-1;i>=0;i--){
+    const f=fragments4[i];
+    f.x+=f.vx*dt; f.y+=f.vy*dt; f.vy+=260*dt; f.rot+=f.vr*dt; f.life+=dt;
+    if(f.life>1.1) fragments4.splice(i,1);
+  }
+}
+function updateFreeParticles(dt){
+  for(const p of particles4post){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=90*dt; }
+}
+function updateStage4(dt){
+  if(s4.popped){
+    s4.popTimer+=dt;
+    updateFreeParticles(dt);
+    updateFragments(dt);
+    updateStage4UI();
+    return;
+  }
+  balloon4.setBase(S4_BASE_R);
+  if(s4.rampMode && s4.pressing){ s4.depth = Math.min(0.62, s4.depth+dt*0.9); }
+  if(s4.pressing) balloon4.indent(s4.angle, TOOL_HALFWIDTH[s4.tool], s4.depth);
+  balloon4.integrate(dt);
+  updateParticles(particles4,balloon4,dt,onCollide4);
+  updateFlashes(flashes4,dt);
+  if(s4.pressing){
+    s4.force = s4.depth/0.62*5.0;
+  } else {
+    s4.force = lerp(s4.force,0,0.12);
+  }
+  const areaM2 = TOOL_AREA[s4.tool]/10000;
+  s4.pressure = s4.force>0.01 ? s4.force/areaM2 : 0;
+  if(s4.pressing && s4.pressure>BURST_PA){
+    s4.overTimer += dt;
+    if(s4.overTimer>0.12) triggerPop();
+  } else {
+    s4.overTimer = 0;
+  }
+  updateStage4UI();
+}
+function renderStage4(){
+  if(s4.popped){ renderPopScene(); return; }
+  balloon4.draw(ctx,'#ff7a68','#c81f4f');
+  drawNeck(ctx,balloon4,true);
+  const a=s4.angle*Math.PI/180;
+  const r=balloon4.radiusAt(s4.angle);
+  const hw=TOOL_HALFWIDTH[s4.tool]*Math.PI/180;
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = s4.tool==='finger' ? 'rgba(87,255,201,0.85)' : 'rgba(255,59,87,0.9)';
+  ctx.lineWidth = 5;
+  ctx.arc(balloon4.cx,balloon4.cy, r+5, a-hw, a+hw);
+  ctx.stroke();
+  ctx.restore();
+  drawParticles(ctx,particles4);
+  drawFlashes(ctx,flashes4);
+  const cp = toolContactPoint(balloon4, S4_BASE_R, s4.pressing, s4.angle);
+  if(s4.tool==='finger') drawFingerShape(ctx, cp.x, cp.y, cp.angleRad);
+  else drawNeedleShape(ctx, cp.x, cp.y, cp.angleRad);
+}
+function renderPopScene(){
+  drawParticles(ctx,particles4post);
+  for(const f of fragments4){
+    ctx.save();
+    ctx.translate(f.x,f.y);
+    ctx.rotate(f.rot);
+    ctx.globalAlpha = clamp(1-f.life/1.1,0,1);
+    ctx.fillStyle='#c81f4f';
+    ctx.beginPath();
+    ctx.moveTo(-f.s,-f.s*0.6);
+    ctx.lineTo(f.s,-f.s*0.3);
+    ctx.lineTo(f.s*0.6,f.s);
+    ctx.lineTo(-f.s*0.5,f.s*0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  if(s4.popTimer<0.16){
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(balloon4.cx,balloon4.cy, 36+s4.popTimer*820, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(255,255,255,${clamp(0.9-s4.popTimer*5.2,0,1).toFixed(3)})`;
+    ctx.lineWidth=6;
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+function logAttempt(tool,force,pressure,popped){
+  const el=document.getElementById('log');
+  if(!el) return;
+  const label = tool==='finger' ? '손가락' : '송곳';
+  const row = `<div>${label} · F=${force.toFixed(1)}N · P=${formatPressure(pressure)} · ${popped?'<span style="color:var(--danger)">터짐!</span>':'괜찮음'}</div>`;
+  if(el.textContent.indexOf('기록이 없')!==-1) el.innerHTML='';
+  el.insertAdjacentHTML('afterbegin', row);
+  while(el.children.length>4) el.removeChild(el.lastChild);
+}
+function updateStage4UI(){
+  const fEl=document.getElementById('s4-f');
+  if(fEl) fEl.textContent = s4.popped ? '-' : s4.force.toFixed(1)+' N';
+  const aEl=document.getElementById('s4-a');
+  if(aEl) aEl.textContent = s4.tool==='finger' ? '8.0 cm² (손가락 끝)' : '0.05 cm² (송곳 끝)';
+  const pEl=document.getElementById('s4-p');
+  if(pEl) pEl.textContent = s4.popped ? '💥 파열' : (s4.pressure>1 ? formatPressure(s4.pressure) : '-');
+  const bar=document.getElementById('s4-pbar');
+  if(bar){
+    const pct=clamp(s4.pressure/BURST_PA*100,0,100);
+    bar.style.width=pct+'%';
+    bar.style.background = pct>85 ? 'linear-gradient(90deg,#ff3b57,#ff8a9b)' : pct>50 ? 'linear-gradient(90deg,#ff9552,#ffce8f)' : 'linear-gradient(90deg,#57ffc9,#9fffe0)';
+  }
+  let exp;
+  if(s4.popped){ exp='압력은 <b>힘 ÷ 면적</b>이에요. 같은 힘이라도 면적이 아주 작은 송곳 끝에서는 압력이 순식간에 치솟아 고무가 버티는 한계를 넘어 <b>펑!</b> 터졌어요.'; }
+  else if(s4.pressing && s4.tool==='needle'){ exp='송곳은 닿는 면적이 아주 작아서, 힘이 조금만 실려도 압력이 무섭게 커지고 있어요.'; }
+  else if(s4.pressing && s4.tool==='finger'){ exp='손가락은 닿는 면적이 넓어서, 힘을 줘도 압력은 크게 오르지 않아요.'; }
+  else { exp='같은 세기로 손가락과 송곳을 눌러 압력(P = F ÷ A)이 어떻게 달라지는지 비교해보세요.'; }
+  const exEl=document.getElementById('explain'); if(exEl) exEl.innerHTML=exp;
+}
+
+/* ===================== 스테이지 전환 ===================== */
+const tabsEl = Array.prototype.slice.call(document.querySelectorAll('#tabs button'));
+const panelEl = document.getElementById('panel');
+let stageIndex = 0;
+
+function initStageState(i){
+  if(i===0) resetStage1();
+  else if(i===1) resetStage2();
+  else if(i===2) resetStage3();
+  else if(i===3) resetStage4();
+}
+function bindPanel(i){
+  if(i===0){
+    document.getElementById('s1-small').onclick=()=>pumpStage1(10);
+    document.getElementById('s1-big').onclick=()=>pumpStage1(50);
+    document.getElementById('s1-reset').onclick=()=>resetStage1();
+  } else if(i===1){
+    const toggleBtn=document.getElementById('s2-toggle');
+    toggleBtn.onclick=()=>{
+      neckOpen2=!neckOpen2;
+      toggleBtn.textContent = neckOpen2 ? '입구 닫기' : '입구 열기';
+      toggleBtn.classList.toggle('primary', !neckOpen2);
+    };
+    document.getElementById('s2-reset').onclick=()=>resetStage2();
+  } else if(i===2){
+    document.getElementById('s3-weak').onclick=()=>{ s3.pressing=true; s3.angle=270; s3.depth=0.22; };
+    document.getElementById('s3-strong').onclick=()=>{ s3.pressing=true; s3.angle=270; s3.depth=0.55; };
+    document.getElementById('s3-release').onclick=()=>{ s3.pressing=false; };
+  } else if(i===3){
+    document.getElementById('s4-finger').onclick=()=>selectTool4('finger');
+    document.getElementById('s4-needle').onclick=()=>selectTool4('needle');
+    document.getElementById('s4-press').onclick=()=>{
+      if(s4.popped) return;
+      s4.pressing=true; s4.rampMode=true; s4.angle=270;
+    };
+    document.getElementById('s4-release').onclick=()=>{
+      if(s4.popped) return;
+      if(s4.pressing && s4.force>0.3) logAttempt(s4.tool,s4.force,s4.pressure,false);
+      s4.pressing=false; s4.rampMode=false;
+    };
+    document.getElementById('s4-reset').onclick=()=>resetStage4();
+  }
+}
+function setStage(i){
+  i = clamp(i,0,3);
+  stageIndex = i;
+  tabsEl.forEach((b,idx)=>b.classList.toggle('active', idx===i));
+  document.getElementById('st-h2').textContent = STAGE_META[i].title;
+  document.getElementById('st-p').textContent = STAGE_META[i].sub;
+  document.getElementById('stage-caption').textContent = STAGE_META[i].caption;
+  panelEl.innerHTML = PANEL_TPL[i];
+  canvas.classList.toggle('grabbable', i===2 || i===3);
+  bindPanel(i);
+  initStageState(i);
+}
+tabsEl.forEach(btn=>btn.addEventListener('click', ()=>setStage(+btn.dataset.i)));
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'){ setStage(stageIndex+1); }
+  else if(e.key==='ArrowLeft'){ setStage(stageIndex-1); }
+  else if(e.key==='1'||e.key==='2'||e.key==='3'||e.key==='4'){ setStage(+e.key-1); }
+});
+
+/* ===================== 포인터(마우스) 입력 : 3, 4단계 ===================== */
+let pointerActive=false;
+function pointerXY(e){
+  const rect=canvas.getBoundingClientRect();
+  return { x:e.clientX-rect.left, y:e.clientY-rect.top };
+}
+canvas.addEventListener('pointerdown', e=>{
+  if(stageIndex!==2 && stageIndex!==3) return;
+  pointerActive=true;
+  canvas.classList.add('pressing');
+  const p=pointerXY(e);
+  if(stageIndex===2) stage3PointerAt(p.x,p.y);
+  else stage4PointerAt(p.x,p.y);
+});
+canvas.addEventListener('pointermove', e=>{
+  if(!pointerActive) return;
+  const p=pointerXY(e);
+  if(stageIndex===2) stage3PointerAt(p.x,p.y);
+  else if(stageIndex===3) stage4PointerAt(p.x,p.y);
+});
+window.addEventListener('pointerup', ()=>{
+  if(!pointerActive) return;
+  pointerActive=false;
+  canvas.classList.remove('pressing');
+  if(stageIndex===2){ s3.pressing=false; }
+  else if(stageIndex===3){
+    if(s4.pressing && !s4.popped && s4.force>0.3) logAttempt(s4.tool,s4.force,s4.pressure,false);
+    s4.pressing=false; s4.rampMode=false;
+  }
+});
+
+/* ===================== 메인 루프 ===================== */
+let lastT=performance.now();
+function frame(t){
+  let dt=(t-lastT)/1000; lastT=t;
+  dt=Math.min(dt,0.033);
+  ctx.clearRect(0,0,W,H);
+  switch(stageIndex){
+    case 0: updateStage1(dt); renderStage1(); break;
+    case 1: updateStage2(dt); renderStage2(); break;
+    case 2: updateStage3(dt); renderStage3(); break;
+    case 3: updateStage4(dt); renderStage4(); break;
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ===================== 시작 ===================== */
+resize();
+setStage(0);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
